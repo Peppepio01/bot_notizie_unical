@@ -32,11 +32,11 @@ from bs4 import BeautifulSoup
 # Token del bot ottenuto da @BotFather su Telegram.
 # Meglio passarlo come variabile d'ambiente TELEGRAM_BOT_TOKEN invece
 # di scriverlo qui in chiaro, ma puoi anche incollarlo direttamente.
-TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "8929640268:AAG4Ypx_QGK5UAdjHLgfU8hT9Tvvsn856go")
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 
 # ID della chat di gruppo (numero negativo tipo -1001234567890).
 # Vedi il README per sapere come ottenerlo.
-TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "-5262978308")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 
 # Pagine del sito da controllare. Puoi aggiungerne altre (es. solo "Avvisi").
 NEWS_LIST_URLS = [
