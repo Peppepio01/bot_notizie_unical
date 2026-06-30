@@ -1,0 +1,41 @@
+name: Unical News Bot
+
+# Esegue il controllo ogni 20 minuti (orario UTC) e permette anche
+# l'avvio manuale dalla tab "Actions" su GitHub (utile per i test).
+on:
+  schedule:
+    - cron: "*/20 * * * *"
+  workflow_dispatch: {}
+
+# Serve per poter salvare seen_news.json di nuovo nel repository.
+permissions:
+  contents: write
+
+jobs:
+  check-news:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run bot
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python bot.py
+
+      - name: Salva lo stato aggiornato nel repository
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add seen_news.json
+          git diff --staged --quiet || git commit -m "Aggiorna stato notizie [skip ci]"
+          git push
