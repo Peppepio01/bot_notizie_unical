@@ -116,9 +116,9 @@ def fetch_news(url, page):
 
         # Ogni notizia compare due volte nella pagina (link immagine + link
         # titolo): teniamo la versione con il titolo non vuoto.
-        if news_id not in items or (title and not items[news_id]["title"]):
+        if news_id not in items or (title and items[news_id]["title"] == "(senza titolo)"):
             items[news_id] = {"id": news_id, "title": title or "(senza titolo)", "url": href}
-
+          
     log.info("Pagina %s: trovate %d notizie nell'HTML renderizzato.", url, len(items))
     return list(items.values())
 
