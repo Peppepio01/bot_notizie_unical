@@ -67,6 +67,7 @@ NEWS_LIST_URLS = [
     "https://dices.unical.it/contents/news/list/?category_name=Avvisi",    # Culture, Educazione e Società (DiCES)
     "https://disu.unical.it/contents/news/list/?category_name=Avvisi",     # Studi Umanistici (DiSU)
     "https://dfssn.unical.it/contents/news/list/?category_name=Avvisi",    # Farmacia e Scienze della Salute (DFSSN)
+    "https://www.unical.it/didattica/iscriversi-studiare-laurearsi/ammissione-1-anno"
 ]
 
 # File dove viene salvato lo stato (quali notizie sono già state notificate).
