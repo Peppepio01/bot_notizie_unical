@@ -24,6 +24,7 @@ import logging
 import argparse
 import requests
 from bs4 import BeautifulSoup
+from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 
 # ----------------------------------------------------------------------
 # CONFIGURAZIONE
@@ -89,21 +90,16 @@ def save_seen_ids(seen_ids):
 # SCRAPING DEL SITO
 # ----------------------------------------------------------------------
 
-def fetch_news(url):
-    """Scarica una pagina di notizie e restituisce una lista di dict
-    {id, title, url}, deduplicati per ID."""
-    resp = requests.get(url, headers=HEADERS, timeout=20)
-    resp.raise_for_status()
+def fetch_news(url, page):
+    """Carica una pagina di notizie con un browser headless (necessario
+    perché il sito carica i contenuti via JavaScript) e restituisce una
+    lista di dict {id, title, url}, deduplicati per ID."""
+    page.goto(url, wait_until="networkidle", timeout=30000)
+    # Piccola attesa extra di sicurezza per contenuti caricati in ritardo.
+    page.wait_for_timeout(1500)
+    html = page.content()
 
-    raw_matches = len(NEWS_LINK_RE.findall(resp.text))
-    log.info(
-        "DEBUG fetch %s -> status=%s, bytes=%d, occorrenze pattern nel testo grezzo=%d",
-        url, resp.status_code, len(resp.text), raw_matches
-    )
-    if raw_matches == 0:
-        log.info("DEBUG primi 1000 caratteri della risposta:\n%s", resp.text[:1000])
-
-    soup = BeautifulSoup(resp.text, "lxml")
+    soup = BeautifulSoup(html, "lxml")
 
     items = {}
     for a in soup.find_all("a", href=True):
@@ -123,17 +119,24 @@ def fetch_news(url):
         if news_id not in items or (title and not items[news_id]["title"]):
             items[news_id] = {"id": news_id, "title": title or "(senza titolo)", "url": href}
 
+    log.info("Pagina %s: trovate %d notizie nell'HTML renderizzato.", url, len(items))
     return list(items.values())
 
 
 def fetch_all_news():
     all_items = {}
-    for url in NEWS_LIST_URLS:
-        try:
-            for item in fetch_news(url):
-                all_items[item["id"]] = item
-        except requests.RequestException as e:
-            log.error("Errore nel recupero di %s: %s", url, e)
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page(user_agent=HEADERS["User-Agent"])
+        for url in NEWS_LIST_URLS:
+            try:
+                for item in fetch_news(url, page):
+                    all_items[item["id"]] = item
+            except PlaywrightTimeoutError as e:
+                log.error("Timeout nel recupero di %s: %s", url, e)
+            except Exception as e:
+                log.error("Errore nel recupero di %s: %s", url, e)
+        browser.close()
     return all_items
 
 
