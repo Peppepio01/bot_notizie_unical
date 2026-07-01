@@ -40,11 +40,33 @@ TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 # Vedi il README per sapere come ottenerlo.
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 
-# Pagine del sito da controllare. Puoi aggiungerne altre (es. solo "Avvisi").
+# Pagine del sito da controllare.
 NEWS_LIST_URLS = [
+    # --- Ateneo Centrale ---
     "https://www.unical.it/contents/news/list",
-    # Esempio per monitorare anche solo la sezione "Avvisi":
-    # "https://www.unical.it/contents/news/list?category_name=Avvisi",
+    "https://www.unical.it/contents/news/list?category_name=Avvisi",
+
+    # --- Dipartimenti Area Scienze e Tecnologie ---
+    "https://ctc.unical.it/contents/news/list/?category_name=Avvisi",      # Chimica (CTC)
+    "https://demacs.unical.it/contents/news/list/?category_name=Avvisi",   # Matematica e Informatica (DeMaCS)
+    "https://dibest.unical.it/contents/news/list/?category_name=Avvisi",   # Biologia, Ecologia, Scienze della Terra (DiBEST)
+    "https://fisica.unical.it/contents/news/list/?category_name=Avvisi",   # Fisica
+
+    # --- Dipartimenti Area Ingegneria ---
+    "https://diam.unical.it/contents/news/list/?category_name=Avvisi",     # Ingegneria dell'Ambiente (DIAm)
+    "https://dimeg.unical.it/contents/news/list/?category_name=Avvisi",    # Ingegneria Meccanica, Energetica, Gestionale (DIMEG)
+    "https://dimes.unical.it/contents/news/list/?category_name=Avvisi",    # Ingegneria Informatica, Elettronica, Sistemistica (DIMES)
+    "https://dinci.unical.it/contents/news/list/?category_name=Avvisi",    # Ingegneria Civile (DINCI)
+
+    # --- Dipartimenti Area Economico-Sociale e Giuridica ---
+    "https://desf.unical.it/contents/news/list/?category_name=Avvisi",     # Economia, Statistica e Finanza (DESF)
+    "https://discag.unical.it/contents/news/list/?category_name=Avvisi",   # Scienze Aziendali e Giuridiche (DiScAG)
+    "https://dispes.unical.it/contents/news/list/?category_name=Avvisi",   # Scienze Politiche e Sociali (DISPeS)
+
+    # --- Dipartimenti Area Umanistica e Medica ---
+    "https://dices.unical.it/contents/news/list/?category_name=Avvisi",    # Culture, Educazione e Società (DiCES)
+    "https://disu.unical.it/contents/news/list/?category_name=Avvisi",     # Studi Umanistici (DiSU)
+    "https://dfssn.unical.it/contents/news/list/?category_name=Avvisi",    # Farmacia e Scienze della Salute (DFSSN)
 ]
 
 # File dove viene salvato lo stato (quali notizie sono già state notificate).
@@ -136,7 +158,7 @@ def fetch_news(url, page, max_attempts=2):
             # bloccarsi se la sezione è legittimamente vuota (es. nessun
             # avviso al momento).
             try:
-                page.wait_for_selector('a[href*="/contents/news/view/"]', timeout=15000)
+                page.wait_for_selector('a[href*="/contents/news/view/"]', timeout=8000)
             except PlaywrightTimeoutError:
                 pass  # può darsi che semplicemente non ci siano notizie
             page.wait_for_timeout(1500)  # margine extra per contenuti in ritardo
@@ -234,13 +256,34 @@ def check_for_updates():
         return
 
     if first_run:
-        # Al primo avvio salviamo tutto come "già visto" senza spammare
-        # il gruppo con tutte le notizie storiche.
+        # Al primissimo avvio in assoluto salviamo tutto come "già visto"
+        # senza spammare il gruppo con tutte le notizie storiche.
         log.info("Primo avvio: salvo %d notizie esistenti senza notificare.", len(all_items))
         save_seen_ids(set(all_items.keys()))
         return
 
-    new_items = [item for item in all_items.values() if item["unique_key"] not in seen_ids]
+    # Domini già monitorati in precedenza (dedotti dagli ID salvati).
+    known_domains = {key.split(":", 1)[0] for key in seen_ids}
+
+    # Se è stata aggiunta una nuova pagina/dipartimento mai vista prima,
+    # "fotografiamo" silenziosamente le sue notizie attuali invece di
+    # notificarle tutte insieme come fossero appena uscite.
+    new_domain_items = [item for item in all_items.values() if item["unique_key"].split(":", 1)[0] not in known_domains]
+    if new_domain_items:
+        new_domains = sorted({item["unique_key"].split(":", 1)[0] for item in new_domain_items})
+        log.info(
+            "Rilevati %d nuovi domini mai monitorati prima (%s): salvo %d notizie esistenti senza notificare.",
+            len(new_domains), ", ".join(new_domains), len(new_domain_items)
+        )
+        for item in new_domain_items:
+            seen_ids.add(item["unique_key"])
+        save_seen_ids(seen_ids)
+
+    new_items = [
+        item for item in all_items.values()
+        if item["unique_key"] not in seen_ids
+        and item["unique_key"].split(":", 1)[0] in known_domains
+    ]
 
     if not new_items:
         log.info("Nessuna novità (%d notizie controllate).", len(all_items))
