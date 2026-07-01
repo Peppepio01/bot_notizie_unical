@@ -1,4 +1,4 @@
-# Bot Telegram – Notizie UniCal (via GitHub Actions)
+# Bot Telegram RDU– Notizie UniCal (via GitHub Actions)
 
 Monitora `https://www.unical.it/contents/news/list` e invia un messaggio nel
 vostro gruppo Telegram ogni volta che viene pubblicata una nuova notizia.
