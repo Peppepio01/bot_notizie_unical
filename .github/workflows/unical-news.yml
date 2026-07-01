@@ -4,7 +4,7 @@ name: Unical News Bot
 # l'avvio manuale dalla tab "Actions" su GitHub (utile per i test).
 on:
   schedule:
-    - cron: "*/2 * * * *"
+    - cron: "*/20 * * * *"
   workflow_dispatch: {}
 
 # Serve per poter salvare seen_news.json di nuovo nel repository.
