@@ -43,7 +43,7 @@ TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 NEWS_LIST_URLS = [
     "https://www.unical.it/contents/news/list",
     # Esempio per monitorare anche solo la sezione "Avvisi":
-    # "https://www.unical.it/contents/news/list?category_name=Avvisi",
+    "https://www.unical.it/contents/news/list?category_name=Avvisi",
 ]
 
 # File dove viene salvato lo stato (quali notizie sono già state notificate).
