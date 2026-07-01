@@ -40,10 +40,34 @@ TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 
 # Pagine del sito da controllare. Puoi aggiungerne altre (es. solo "Avvisi").
+# Pagine del sito da controllare. Monitoriamo l'Ateneo principale
+# e le bacheche Avvisi (bandi/scadenze) di tutti i 14 Dipartimenti.
 NEWS_LIST_URLS = [
+    # --- Ateneo Centrale ---
     "https://www.unical.it/contents/news/list",
-    # Esempio per monitorare anche solo la sezione "Avvisi":
     "https://www.unical.it/contents/news/list?category_name=Avvisi",
+    
+    # --- Dipartimenti Area Scienze e Tecnologie ---
+    "https://ctc.unical.it/contents/news/list/?category_name=Avvisi",      # Chimica (CTC)
+    "https://demacs.unical.it/contents/news/list/?category_name=Avvisi",   # Matematica e Informatica (DeMaCS)
+    "https://dibest.unical.it/contents/news/list/?category_name=Avvisi",   # Biologia, Ecologia, Scienze della Terra (DiBEST)
+    "https://fisica.unical.it/contents/news/list/?category_name=Avvisi",   # Fisica
+    
+    # --- Dipartimenti Area Ingegneria ---
+    "https://diam.unical.it/contents/news/list/?category_name=Avvisi",     # Ingegneria dell'Ambiente (DIAm)
+    "https://dimeg.unical.it/contents/news/list/?category_name=Avvisi",    # Ingegneria Meccanica, Energetica, Gestionale (DIMEG)
+    "https://dimes.unical.it/contents/news/list/?category_name=Avvisi",    # Ingegneria Informatica, Elettronica, Sistemistica (DIMES)
+    "https://dinci.unical.it/contents/news/list/?category_name=Avvisi",    # Ingegneria Civile (DINCI)
+    
+    # --- Dipartimenti Area Economico-Sociale e Giuridica ---
+    "https://desf.unical.it/contents/news/list/?category_name=Avvisi",     # Economia, Statistica e Finanza (DESF)
+    "https://discag.unical.it/contents/news/list/?category_name=Avvisi",   # Scienze Aziendali e Giuridiche (DiScAG)
+    "https://dispes.unical.it/contents/news/list/?category_name=Avvisi",   # Scienze Politiche e Sociali (DISPeS)
+    
+    # --- Dipartimenti Area Umanistica e Medica ---
+    "https://dices.unical.it/contents/news/list/?category_name=Avvisi",    # Culture, Educazione e Società (DiCES)
+    "https://disu.unical.it/contents/news/list/?category_name=Avvisi",     # Studi Umanistici (DiSU)
+    "https://dfssn.unical.it/contents/news/list/?category_name=Avvisi"     # Farmacia e Scienze della Salute (DFSSN)
 ]
 
 # File dove viene salvato lo stato (quali notizie sono già state notificate).
