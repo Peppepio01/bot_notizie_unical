@@ -20,6 +20,7 @@ import os
 import sys
 import json
 import time
+import hashlib
 import logging
 import argparse
 import requests
@@ -40,34 +41,62 @@ TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 # Vedi il README per sapere come ottenerlo.
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 
-# Pagine del sito da controllare.
+# Pagine del sito da controllare per NUOVE NOTIZIE/AVVISI/BANDI.
+# I bandi usano esattamente la stessa struttura di link delle notizie
+# (/contents/news/view/ID-slug/), quindi vengono gestiti dallo stesso
+# meccanismo, semplicemente aggiungendo le loro pagine "lista" qui sotto.
 NEWS_LIST_URLS = [
     # --- Ateneo Centrale ---
     "https://www.unical.it/contents/news/list",
     "https://www.unical.it/contents/news/list?category_name=Avvisi",
 
-    # --- Dipartimenti Area Scienze e Tecnologie ---
+    # --- Dipartimenti Area Scienze e Tecnologie: Avvisi ---
     "https://ctc.unical.it/contents/news/list/?category_name=Avvisi",      # Chimica (CTC)
     "https://demacs.unical.it/contents/news/list/?category_name=Avvisi",   # Matematica e Informatica (DeMaCS)
     "https://dibest.unical.it/contents/news/list/?category_name=Avvisi",   # Biologia, Ecologia, Scienze della Terra (DiBEST)
     "https://fisica.unical.it/contents/news/list/?category_name=Avvisi",   # Fisica
 
-    # --- Dipartimenti Area Ingegneria ---
+    # --- Dipartimenti Area Ingegneria: Avvisi ---
     "https://diam.unical.it/contents/news/list/?category_name=Avvisi",     # Ingegneria dell'Ambiente (DIAm)
     "https://dimeg.unical.it/contents/news/list/?category_name=Avvisi",    # Ingegneria Meccanica, Energetica, Gestionale (DIMEG)
     "https://dimes.unical.it/contents/news/list/?category_name=Avvisi",    # Ingegneria Informatica, Elettronica, Sistemistica (DIMES)
     "https://dinci.unical.it/contents/news/list/?category_name=Avvisi",    # Ingegneria Civile (DINCI)
 
-    # --- Dipartimenti Area Economico-Sociale e Giuridica ---
+    # --- Dipartimenti Area Economico-Sociale e Giuridica: Avvisi ---
     "https://desf.unical.it/contents/news/list/?category_name=Avvisi",     # Economia, Statistica e Finanza (DESF)
     "https://discag.unical.it/contents/news/list/?category_name=Avvisi",   # Scienze Aziendali e Giuridiche (DiScAG)
     "https://dispes.unical.it/contents/news/list/?category_name=Avvisi",   # Scienze Politiche e Sociali (DISPeS)
 
-    # --- Dipartimenti Area Umanistica e Medica ---
+    # --- Dipartimenti Area Umanistica e Medica: Avvisi ---
     "https://dices.unical.it/contents/news/list/?category_name=Avvisi",    # Culture, Educazione e Società (DiCES)
     "https://disu.unical.it/contents/news/list/?category_name=Avvisi",     # Studi Umanistici (DiSU)
     "https://dfssn.unical.it/contents/news/list/?category_name=Avvisi",    # Farmacia e Scienze della Salute (DFSSN)
-    "https://www.unical.it/didattica/iscriversi-studiare-laurearsi/ammissione-1-anno"
+
+    # --- Bandi e Concorsi per Dipartimento ---
+    # Stessa struttura delle pagine "Avvisi", solo sotto un percorso diverso.
+    "https://ctc.unical.it/dipartimento/organizzazione/documenti-bandi-e-concorsi/contents/news/list?category_name=avvisi",
+    "https://demacs.unical.it/dipartimento/organizzazione/documenti-bandi-e-concorsi/contents/news/list?category_name=avvisi",
+    "https://dibest.unical.it/dipartimento/organizzazione/documenti-bandi-e-concorsi/contents/news/list?category_name=avvisi",
+    "https://fisica.unical.it/dipartimento/organizzazione/documenti-bandi-e-concorsi/contents/news/list?category_name=avvisi",
+    "https://diam.unical.it/dipartimento/organizzazione/documenti-bandi-e-concorsi/contents/news/list?category_name=avvisi",
+    "https://dimeg.unical.it/dipartimento/organizzazione/documenti-bandi-e-concorsi/contents/news/list?category_name=avvisi",
+    "https://dimes.unical.it/dipartimento/organizzazione/documenti-bandi-e-concorsi/contents/news/list?category_name=avvisi",
+    "https://dinci.unical.it/dipartimento/organizzazione/documenti-bandi-e-concorsi/contents/news/list?category_name=avvisi",
+    "https://desf.unical.it/dipartimento/organizzazione/documenti-bandi-e-concorsi/contents/news/list?category_name=avvisi",
+    "https://discag.unical.it/dipartimento/organizzazione/documenti-bandi-e-concorsi/contents/news/list?category_name=avvisi",
+    "https://dispes.unical.it/dipartimento/organizzazione/documenti-bandi-e-concorsi/contents/news/list?category_name=avvisi",
+    "https://dices.unical.it/dipartimento/organizzazione/documenti-bandi-e-concorsi/contents/news/list?category_name=avvisi",
+    "https://disu.unical.it/dipartimento/organizzazione/documenti-bandi-e-concorsi/contents/news/list?category_name=avvisi",
+    "https://dfssn.unical.it/dipartimento/organizzazione/documenti-bandi-e-concorsi/contents/news/list?category_name=avvisi",
+]
+
+# Pagine "statiche" da monitorare per MODIFICHE AL CONTENUTO (non hanno un
+# elenco di notizie datate, ma vengono aggiornate di tanto in tanto, es.
+# nuovi importi/scadenze delle tasse). Il bot avvisa quando il testo della
+# pagina cambia rispetto all'ultimo controllo, senza sapere esattamente
+# cosa è cambiato: utile comunque come "campanello d'allarme".
+PAGE_WATCH_URLS = [
+    "https://www.unical.it/didattica/iscriversi-studiare-laurearsi/tasse-ed-esoneri/",
 ]
 
 # File dove viene salvato lo stato (quali notizie sono già state notificate).
@@ -92,50 +121,60 @@ log = logging.getLogger("unical_bot")
 
 
 # ----------------------------------------------------------------------
-# STATO (notizie già notificate)
+# STATO (notizie già notificate + hash delle pagine monitorate)
 # ----------------------------------------------------------------------
 
-def load_seen_ids():
-    """Carica gli ID delle notizie già notificate.
+def load_state():
+    """Carica lo stato salvato: {"news_seen": [...], "page_hashes": {...}}.
 
-    Gestisce anche la migrazione dal vecchio formato (solo numero, es.
-    "24107") al nuovo formato "dominio:numero" (es. "www.unical.it:24107"),
-    introdotto per distinguere notizie con lo stesso ID numerico ma
-    provenienti da sottodomini diversi (es. dimes.unical.it). Senza questa
-    migrazione, al primo avvio dopo l'aggiornamento tutte le notizie vecchie
-    sembrerebbero "nuove" e verrebbero rinviate tutte insieme nel gruppo.
+    Gestisce la migrazione automatica dai formati precedenti, usati nelle
+    versioni passate dello script:
+      - Gen 1: lista JSON di soli numeri, es. ["24107", "24108"]
+      - Gen 2: lista JSON di "dominio:numero", es. ["www.unical.it:24107"]
+      - Gen 3 (attuale): dict con chiavi "news_seen" e "page_hashes"
+
+    Senza questa migrazione, ogni cambio di formato farebbe sembrare tutte
+    le notizie vecchie "nuove", con conseguente spam nel gruppo.
     """
     if not os.path.exists(STATE_FILE):
-        return set()
+        return {"news_seen": set(), "page_hashes": {}}
     try:
         with open(STATE_FILE, "r", encoding="utf-8") as f:
-            raw_ids = json.load(f)
+            raw = json.load(f)
     except (json.JSONDecodeError, OSError) as e:
         log.warning("Impossibile leggere %s (%s), riparto da zero.", STATE_FILE, e)
-        return set()
+        return {"news_seen": set(), "page_hashes": {}}
 
+    if isinstance(raw, dict):
+        # Già nel formato attuale.
+        return {
+            "news_seen": set(raw.get("news_seen", [])),
+            "page_hashes": dict(raw.get("page_hashes", {})),
+        }
+
+    # Formato vecchio: lista piatta (Gen 1 o Gen 2). Migriamo al volo.
     migrated = set()
-    needs_migration = False
-    for entry in raw_ids:
+    for entry in raw:
         entry = str(entry)
         if ":" in entry:
             migrated.add(entry)
         else:
-            # Vecchio formato: assumiamo che provenisse dall'unico dominio
+            # Vecchissimo formato: assumiamo provenisse dall'unico dominio
             # monitorato all'epoca, www.unical.it.
             migrated.add(f"www.unical.it:{entry}")
-            needs_migration = True
 
-    if needs_migration:
-        log.info("Migrazione di %d ID dal vecchio formato al nuovo (dominio:id).", len(migrated))
-        save_seen_ids(migrated)
-
-    return migrated
+    log.info("Migrazione di %d ID al nuovo formato di stato (dict con news_seen/page_hashes).", len(migrated))
+    state = {"news_seen": migrated, "page_hashes": {}}
+    save_state(state)
+    return state
 
 
-def save_seen_ids(seen_ids):
+def save_state(state):
     with open(STATE_FILE, "w", encoding="utf-8") as f:
-        json.dump(sorted(seen_ids), f, ensure_ascii=False, indent=2)
+        json.dump(
+            {"news_seen": sorted(state["news_seen"]), "page_hashes": state["page_hashes"]},
+            f, ensure_ascii=False, indent=2
+        )
 
 
 # ----------------------------------------------------------------------
@@ -218,6 +257,75 @@ def fetch_all_news():
     return all_items
 
 
+def fetch_page_text_hash(url, page, max_attempts=2):
+    """Carica una pagina "statica" (non un elenco di notizie) e restituisce
+    un hash del suo contenuto testuale visibile, per poterlo confrontare
+    nel tempo e rilevare eventuali modifiche."""
+    last_error = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            page.goto(url, wait_until="domcontentloaded", timeout=45000)
+            page.wait_for_timeout(1500)
+            html = page.content()
+            break
+        except PlaywrightTimeoutError as e:
+            last_error = e
+            log.warning("Tentativo %d/%d fallito per %s (timeout).", attempt, max_attempts, url)
+    else:
+        raise last_error
+
+    soup = BeautifulSoup(html, "lxml")
+    # Rimuoviamo script/stili, che possono cambiare senza che il
+    # contenuto informativo della pagina sia realmente cambiato.
+    for tag in soup(["script", "style"]):
+        tag.decompose()
+    text = " ".join(soup.get_text(separator=" ", strip=True).split())
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def check_page_changes(state):
+    """Controlla le pagine statiche configurate (PAGE_WATCH_URLS) e
+    notifica se il loro contenuto è cambiato rispetto all'ultimo
+    controllo."""
+    if not PAGE_WATCH_URLS:
+        return
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page(user_agent=HEADERS["User-Agent"])
+        for url in PAGE_WATCH_URLS:
+            try:
+                current_hash = fetch_page_text_hash(url, page)
+            except PlaywrightTimeoutError as e:
+                log.error("Timeout nel controllo della pagina %s: %s", url, e)
+                continue
+            except Exception as e:
+                log.error("Errore nel controllo della pagina %s: %s", url, e)
+                continue
+
+            previous_hash = state["page_hashes"].get(url)
+
+            if previous_hash is None:
+                # Prima volta che monitoriamo questa pagina: salviamo il
+                # riferimento senza notificare (non abbiamo un "prima" con
+                # cui confrontarla).
+                log.info("Pagina %s monitorata per la prima volta: salvo il riferimento senza notificare.", url)
+                state["page_hashes"][url] = current_hash
+                save_state(state)
+            elif previous_hash != current_hash:
+                log.info("Rilevata modifica nella pagina %s, invio notifica su Telegram...", url)
+                text = f"🔔 <b>Pagina aggiornata</b>\n{url}"
+                try:
+                    send_telegram_message(text)
+                    state["page_hashes"][url] = current_hash
+                    save_state(state)
+                except requests.RequestException as e:
+                    log.error("Invio fallito per la modifica di %s: %s", url, e)
+            else:
+                log.info("Nessuna modifica per %s.", url)
+        browser.close()
+
+
 # ----------------------------------------------------------------------
 # INVIO TELEGRAM
 # ----------------------------------------------------------------------
@@ -248,58 +356,60 @@ def send_telegram_message(text):
 # ----------------------------------------------------------------------
 
 def check_for_updates():
-    seen_ids = load_seen_ids()
+    state = load_state()
+    seen_ids = state["news_seen"]
     first_run = len(seen_ids) == 0
 
     all_items = fetch_all_news()
     if not all_items:
         log.warning("Nessuna notizia trovata: il sito potrebbe aver cambiato struttura, o errore di rete.")
-        return
-
-    if first_run:
+    elif first_run:
         # Al primissimo avvio in assoluto salviamo tutto come "già visto"
         # senza spammare il gruppo con tutte le notizie storiche.
         log.info("Primo avvio: salvo %d notizie esistenti senza notificare.", len(all_items))
-        save_seen_ids(set(all_items.keys()))
-        return
+        state["news_seen"] = set(all_items.keys())
+        save_state(state)
+    else:
+        # Domini già monitorati in precedenza (dedotti dagli ID salvati).
+        known_domains = {key.split(":", 1)[0] for key in seen_ids}
 
-    # Domini già monitorati in precedenza (dedotti dagli ID salvati).
-    known_domains = {key.split(":", 1)[0] for key in seen_ids}
+        # Se è stata aggiunta una nuova pagina/dipartimento mai vista
+        # prima, "fotografiamo" silenziosamente le sue notizie attuali
+        # invece di notificarle tutte insieme come fossero appena uscite.
+        new_domain_items = [item for item in all_items.values() if item["unique_key"].split(":", 1)[0] not in known_domains]
+        if new_domain_items:
+            new_domains = sorted({item["unique_key"].split(":", 1)[0] for item in new_domain_items})
+            log.info(
+                "Rilevati %d nuovi domini mai monitorati prima (%s): salvo %d notizie esistenti senza notificare.",
+                len(new_domains), ", ".join(new_domains), len(new_domain_items)
+            )
+            for item in new_domain_items:
+                seen_ids.add(item["unique_key"])
+            save_state(state)
 
-    # Se è stata aggiunta una nuova pagina/dipartimento mai vista prima,
-    # "fotografiamo" silenziosamente le sue notizie attuali invece di
-    # notificarle tutte insieme come fossero appena uscite.
-    new_domain_items = [item for item in all_items.values() if item["unique_key"].split(":", 1)[0] not in known_domains]
-    if new_domain_items:
-        new_domains = sorted({item["unique_key"].split(":", 1)[0] for item in new_domain_items})
-        log.info(
-            "Rilevati %d nuovi domini mai monitorati prima (%s): salvo %d notizie esistenti senza notificare.",
-            len(new_domains), ", ".join(new_domains), len(new_domain_items)
-        )
-        for item in new_domain_items:
-            seen_ids.add(item["unique_key"])
-        save_seen_ids(seen_ids)
+        new_items = [
+            item for item in all_items.values()
+            if item["unique_key"] not in seen_ids
+            and item["unique_key"].split(":", 1)[0] in known_domains
+        ]
 
-    new_items = [
-        item for item in all_items.values()
-        if item["unique_key"] not in seen_ids
-        and item["unique_key"].split(":", 1)[0] in known_domains
-    ]
+        if not new_items:
+            log.info("Nessuna novità tra le notizie (%d controllate).", len(all_items))
+        else:
+            log.info("Trovate %d nuove notizie, invio su Telegram...", len(new_items))
+            for item in sorted(new_items, key=lambda x: (x["unique_key"].split(":")[0], int(x["id"]))):
+                text = f"📰 <b>{item['title']}</b>\n{item['url']}"
+                try:
+                    send_telegram_message(text)
+                    seen_ids.add(item["unique_key"])
+                    save_state(state)  # salva subito, così se qualcosa va storto non perdi il progresso
+                except requests.RequestException as e:
+                    log.error("Invio fallito per la notizia %s: %s", item["unique_key"], e)
+                time.sleep(1.5)  # margine di sicurezza per i rate limit di Telegram
 
-    if not new_items:
-        log.info("Nessuna novità (%d notizie controllate).", len(all_items))
-        return
-
-    log.info("Trovate %d nuove notizie, invio su Telegram...", len(new_items))
-    for item in sorted(new_items, key=lambda x: (x["unique_key"].split(":")[0], int(x["id"]))):
-        text = f"📰 <b>{item['title']}</b>\n{item['url']}"
-        try:
-            send_telegram_message(text)
-            seen_ids.add(item["unique_key"])
-            save_seen_ids(seen_ids)  # salva subito, così se qualcosa va storto non perdi il progresso
-        except requests.RequestException as e:
-            log.error("Invio fallito per la notizia %s: %s", item["unique_key"], e)
-        time.sleep(1.5)  # margine di sicurezza per i rate limit di Telegram
+    # Controllo separato per le pagine statiche (es. tasse), che non hanno
+    # un elenco di notizie datate ma vengono comunque aggiornate a volte.
+    check_page_changes(state)
 
 
 def main():
